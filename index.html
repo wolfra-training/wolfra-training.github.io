@@ -383,6 +383,19 @@ footer .ln a:hover{color:#fff}
 .tl::before{background:linear-gradient(180deg,var(--yel),#16243E)}
 .tl>li::before{border-color:var(--yel)}
 
+/* progress code */
+.sync{padding:0}
+.sync summary{cursor:pointer;list-style:none;padding:18px 24px;font:700 15px var(--display);display:flex;justify-content:space-between;gap:14px}
+.sync summary::after{content:"+";color:var(--yel);font-size:22px;line-height:1}
+.sync[open] summary::after{content:"\2212"}
+.sync>p{margin:0;padding:0 24px 14px;color:var(--muted);font-size:14.5px;max-width:70ch}
+.syncrow{display:flex;gap:12px;align-items:flex-end;padding:0 24px 16px;flex-wrap:wrap}
+.syncrow .fld{flex:1 1 280px;min-width:0}
+.syncrow input[type=text]{width:100%;padding:12px 14px;border-radius:12px;border:1px solid #243756;background:#070D18;color:#fff;font:600 15px/1.2 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.02em}
+.syncrow input:focus{outline:0;border-color:var(--blue);box-shadow:0 0 0 3px rgba(46,139,255,.25)}
+.syncrow .btn{padding:13px 18px;font-size:13.5px}
+.sync .syncnote{padding:0 24px 18px;color:var(--yel2);font-size:14px;min-height:1.2em}
+
 </style>
 
 </head><body>
@@ -473,6 +486,13 @@ footer .ln a:hover{color:#fff}
         <ul><li><b id="c_done">0</b> of 48 sessions done</li><li><b id="c_pw">0</b> perfect weeks</li><li id="c_next"></li></ul>
       </div>
     </div>
+    <details class="card sync" id="c_sync">
+      <summary>Switching phone or laptop? Move your progress</summary>
+      <p>This calendar remembers your ticks only inside the browser you are using now. Nothing is sent to a server. To carry your progress to another phone, laptop or browser, copy your code below, open this page there, paste it into <b>Load progress</b> and press the button.</p>
+      <div class="syncrow"><div class="fld"><label for="c_code">Your progress code</label><input id="c_code" type="text" readonly value=""></div><button class="btn ghost" id="c_copy" type="button">Copy code</button></div>
+      <div class="syncrow"><div class="fld"><label for="c_load">Load progress</label><input id="c_load" type="text" placeholder="Paste a code from another device" autocomplete="off" spellcheck="false"></div><button class="btn ghost" id="c_apply" type="button">Load</button></div>
+      <p class="syncnote" id="c_msg" aria-live="polite"></p>
+    </details>
     <div class="wkstrip" id="c_strip" role="group" aria-label="Choose a week"></div>
     <div class="card" id="c_week">
       <div class="wkhead">
@@ -688,7 +708,7 @@ function rankImg(n){var l=CONFIG.rankLogos||{};return l[(n||'').toLowerCase()]||
 
 /* ---------- render ---------- */
 function renderCal(){if(!$('#c_grid'))return;
- $('#c_start').value=iso(start);$('#c_snap').textContent='(Monday '+fmt(start)+')';
+ $('#c_start').value=iso(start);if($('#c_code'))$('#c_code').value=code();$('#c_snap').textContent='(Monday '+fmt(start)+')';
  var c=counts(),pct=Math.round(c.n/48*100);
  $('#c_ring').style.strokeDashoffset=226.2*(1-c.n/48);$('#c_pct').textContent=pct+'%';$('#c_done').textContent=c.n;$('#c_pw').textContent=c.pw;
  var tp=todayPos(),nx=$('#c_next');
@@ -757,10 +777,15 @@ function ics(){var L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//RELENTLESS//Wol
  L.push('END:VCALENDAR');return L.join('\r\n')}
 function download(){try{var b=new Blob([ics()],{type:'text/calendar'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='RELENTLESS-12-weeks.ics';document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u)},4000);toast('Calendar file downloaded. Open it to add all sessions.')}catch(e){toast('Could not create the calendar file in this browser.')}}
 
+function code(){var bits='';for(var w=1;w<=12;w++)for(var d=0;d<7;d++)bits+=done[key(w,d)]?'1':'0';var hx='';for(var i=0;i<84;i+=4)hx+=parseInt(bits.substr(i,4),2).toString(16);return 'RL1-'+iso(start).replace(/-/g,'')+'-'+(mode==='gym'?'G':'H')+'-'+hx.toUpperCase()}
+function readCode(s){var m=/^RL1-(\d{8})-([GH])-([0-9A-F]{21})$/.exec((s||'').replace(/\s+/g,'').toUpperCase());if(!m)return null;var dt=fromIso(m[1].slice(0,4)+'-'+m[1].slice(4,6)+'-'+m[1].slice(6,8));if(!dt)return null;var bits='';for(var i=0;i<21;i++)bits+=('000'+parseInt(m[3][i],16).toString(2)).slice(-4);var o={};for(var w=1;w<=12;w++)for(var d=0;d<7;d++)if(bits[(w-1)*7+d]==='1'&&isTrain(d))o[key(w,d)]=1;return{start:monOf(dt),mode:m[2]==='G'?'gym':'home',done:o}}
+function msg(t){var e=$('#c_msg');if(e)e.textContent=t}
 function init(){if(!$('#c_grid'))return;load();var tp=todayPos();if(tp.w){selW=tp.w;selD=tp.d}
  $('#c_start').onchange=function(){var s=fromIso(this.value);if(!s)return;start=monOf(s);ls('rl_start',iso(start));var t=todayPos();selW=t.w||1;selD=t.w?t.d:0;renderCal()};
  $('#c_mon').onclick=function(){start=nextMon();ls('rl_start',iso(start));var t=todayPos();selW=t.w||1;selD=t.w?t.d:0;renderCal();toast('Week 1 starts Monday '+fmt(start)+'.')};
  $('#c_ics').onclick=download;
+ $('#c_copy').onclick=function(){var v=code(),i=$('#c_code');i.value=v;var ok=false;try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(v);ok=true}}catch(e){}if(!ok){try{i.select();ok=document.execCommand('copy')}catch(e){}}msg(ok?'Code copied. Paste it on your other device under "Load progress".':'Select the code above and copy it.')};
+ $('#c_apply').onclick=function(){var r=readCode($('#c_load').value);if(!r){msg('That code does not look right. Copy the whole code from your other device.');return}start=r.start;ls('rl_start',iso(start));done=r.done;save();var t=todayPos();selW=t.w||1;selD=t.w?t.d:0;$('#c_load').value='';setMode(r.mode);renderCal();msg('Progress loaded. '+counts().n+' sessions ticked.')};
  $('#c_prev').onclick=function(){if(selW>1){selW--;renderCal()}};$('#c_nextw').onclick=function(){if(selW<12){selW++;renderCal()}};
  $('#c_today').onclick=function(){var t=todayPos();if(t.w){selW=t.w;selD=t.d}else{selW=t.after?12:1;selD=0}renderCal()};
  $$('#i_push,#i_pull,#i_sq,#i_pl,#pullseg button').forEach(function(i){i.addEventListener('input',function(){setTimeout(renderCal,0)});i.addEventListener('click',function(){setTimeout(renderCal,0)})});
